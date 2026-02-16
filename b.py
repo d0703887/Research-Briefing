@@ -1,12 +1,17 @@
 import json
-import re
+import math
 import argparse
+import datetime
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional
 from tqdm import tqdm  # You might need to pip install tqdm
 from textwrap import dedent
 from pydantic import BaseModel, Field
+
+# Rich imports for pretty printing
+from rich.console import Console
+from rich.markdown import Markdown
 
 # Import your existing structures
 from a import PaperMetadata, ArxivCurator
@@ -269,7 +274,7 @@ class TopicCluster:
         num_papers = len(sorted_papers)
         for i in range(0, num_papers, batch_size):
             batch = sorted_papers[i: i + batch_size]
-            logger.info(f"Processing batch {i // batch_size + 1}/{num_papers}...")
+            logger.info(f"Processing batch {i // batch_size + 1}/{math.ceil(num_papers // batch_size)}...")
 
             success = False
             while not success:
@@ -277,17 +282,75 @@ class TopicCluster:
 
         return self.clusters
 
+    def generate_markdown_report(self, all_papers: List[PaperMetadata]) -> str:
+        """
+        Generates a structured Markdown string from the clustering results.
+        """
+        # Create a lookup for easy access to paper details
+        paper_map = {p.arxiv_id: p for p in all_papers}
+
+        md_lines = []
+        md_lines.append("# 📚 ArXiv Research Cluster Report")
+        md_lines.append(f"> Generated on {datetime.now().strftime('%Y-%m-%d')} | Total Papers: {len(all_papers)}")
+        md_lines.append("---")
+
+        # Sort clusters by number of papers (descending)
+        sorted_clusters = sorted(self.clusters.values(), key=lambda c: len(c.paper_ids), reverse=True)
+
+        for cluster in sorted_clusters:
+            if not cluster.paper_ids:
+                continue
+
+            # Cluster Header
+            md_lines.append(f"## 📂 {cluster.topic}")
+            md_lines.append(f"_{cluster.description}_")
+            md_lines.append("")  # Empty line for spacing
+
+            # List Papers
+            for pid in cluster.paper_ids:
+                paper = paper_map.get(pid)
+                if not paper:
+                    continue
+
+                # Format: - [Title](URL) (Date)
+                # We use a slight hack for terminals: most modern terminals support clickable links.
+                # Markdown format: [Link Text](URL)
+
+                # Clean up authors (first 3 et al)
+                author_str = ", ".join(paper.authors[:2])
+                if len(paper.authors) > 2:
+                    author_str += " et al."
+
+                # Create the list item
+                # **Title** - Authors
+                # [📄 Link] | [🏷️ Tags]
+                md_lines.append(f"### [{paper.title}]({paper.arxiv_url})")
+                md_lines.append(f"- **Authors:** {author_str}")
+                md_lines.append(f"- **Date:** {paper.published_date.strftime('%Y-%m-%d')}")
+
+                if paper.topics:
+                    tags = ", ".join([f"`{t}`" for t in paper.topics])
+                    md_lines.append(f"- **Tags:** {tags}")
+
+                md_lines.append("")  # Spacing between papers
+
+            md_lines.append("---")
+
+        return "\n".join(md_lines)
+
     def run(self, papers, batch_size):
         self.extract_topics(papers)
         self.cluster_topics(papers, batch_size)
 
-        idx2paper = {p.arxiv_id: p.title for p in papers}
-        for cluster_id in  self.clusters:
-            print(f"{cluster_id} | Topic: {self.clusters[cluster_id].topic}")
-            print(f"Desc: {self.clusters[cluster_id].description}")
-            for p in self.clusters[cluster_id].paper_ids:
-                print(f"{idx2paper[p]}")
-            print()
+        console = Console()
+
+        # Generate the Markdown string
+        report = self.generate_markdown_report(papers)
+
+        # Render it beautifully
+        console.print(Markdown(report))
+
+        return report
 
 
 if __name__ == '__main__':
