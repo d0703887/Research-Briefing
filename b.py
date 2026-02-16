@@ -1,7 +1,7 @@
 import json
 import math
 import argparse
-import datetime
+from datetime import datetime
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional
@@ -9,9 +9,6 @@ from tqdm import tqdm  # You might need to pip install tqdm
 from textwrap import dedent
 from pydantic import BaseModel, Field
 
-# Rich imports for pretty printing
-from rich.console import Console
-from rich.markdown import Markdown
 
 # Import your existing structures
 from a import PaperMetadata, ArxivCurator
@@ -342,13 +339,11 @@ class TopicCluster:
         self.extract_topics(papers)
         self.cluster_topics(papers, batch_size)
 
-        console = Console()
-
         # Generate the Markdown string
         report = self.generate_markdown_report(papers)
 
-        # Render it beautifully
-        console.print(Markdown(report))
+        with open("report.md", "w", encoding='utf-8') as f:
+            f.write(report)
 
         return report
 
