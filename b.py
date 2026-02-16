@@ -266,10 +266,10 @@ class TopicCluster:
         # Sort by relevance so high-impact papers define the initial clusters
         # This acts as "canonical initialization"
         sorted_papers = sorted(all_papers, key=lambda x: x.relevance_score, reverse=True)
-
-        for i in range(0, len(sorted_papers), batch_size):
+        num_papers = len(sorted_papers)
+        for i in range(0, num_papers, batch_size):
             batch = sorted_papers[i: i + batch_size]
-            logger.info(f"Processing batch {i // batch_size + 1}...")
+            logger.info(f"Processing batch {i // batch_size + 1}/{num_papers}...")
 
             success = False
             while not success:
