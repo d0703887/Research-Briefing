@@ -277,9 +277,9 @@ class TopicCluster:
 
         return self.clusters
 
-    def run(self, papers):
+    def run(self, papers, batch_size):
         self.extract_topics(papers)
-        self.cluster_topics(papers, 10)
+        self.cluster_topics(papers, batch_size)
 
         idx2paper = {p.arxiv_id: p.title for p in papers}
         for cluster_id in  self.clusters:
@@ -323,13 +323,5 @@ if __name__ == '__main__':
     clusterer = TopicCluster(model_name=args.model, max_workers=args.workers)
 
     # 3. Extract Topics (Tagging)
-    logger.info("Step 1/2: Extracting Topics...")
-    papers = clusterer.extract_topics(papers)
-
-    # 4. Cluster Papers
-    logger.info("Step 2/2: Clustering Papers...")
-    clusterer.cluster_topics(papers, batch_size=args.batch_size)
-
-    # 5. Output
-    clusterer.print_results(papers)
+    clusterer.run(papers, args.batch_size)
 
