@@ -1,5 +1,6 @@
 import json
 import re
+import argparse
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional
@@ -291,12 +292,44 @@ class TopicCluster:
 
 if __name__ == '__main__':
 
-    extractor = TopicCluster(model_name='ministral-3:8b')
-    curator = ArxivCurator(lookback_days=7, max_results=200)  # Small test
+    parser = argparse.ArgumentParser(description="ArXiv Paper Curator & Clusterer")
+
+    # Arguments
+    parser.add_argument("--model", type=str, default="ministral-3:8b",
+                        help="Ollama model name (default: ministral-3:8b)")
+    parser.add_argument("--days", type=int, default=1,
+                        help="Number of past days to fetch papers from (default: 1)")
+    parser.add_argument("--max-results", type=int, default=50,
+                        help="Max papers to fetch from ArXiv (default: 50)")
+    parser.add_argument("--batch-size", type=int, default=5,
+                        help="Number of papers to cluster at once (default: 5)")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Parallel workers for topic extraction (default: 1)")
+
+    args = parser.parse_args()
+
+    # 1. Fetch Papers
+    logger.info(f"Fetching papers from the last {args.days} days...")
+    curator = ArxivCurator(lookback_days=args.days, max_results=args.max_results)
     papers = curator.run()
-    extractor.run(papers)
-    for p in papers:
-        print(p.title)
-        print(p.topics)
-        print()
+
+    if not papers:
+        logger.info("No papers found matching criteria.")
+        exit(0)
+
+    logger.info(f"Fetched {len(papers)} papers.")
+
+    # 2. Initialize Clusterer
+    clusterer = TopicCluster(model_name=args.model, max_workers=args.workers)
+
+    # 3. Extract Topics (Tagging)
+    logger.info("Step 1/2: Extracting Topics...")
+    papers = clusterer.extract_topics(papers)
+
+    # 4. Cluster Papers
+    logger.info("Step 2/2: Clustering Papers...")
+    clusterer.cluster_topics(papers, batch_size=args.batch_size)
+
+    # 5. Output
+    clusterer.print_results(papers)
 
